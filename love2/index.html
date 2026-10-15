@@ -43,6 +43,7 @@
             width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.5); color: white; font-size: 1rem; text-align: center;
         }
 
+        .file-label { display: block; background: rgba(255,255,255,0.1); padding: 14px; border-radius: 12px; margin: 10px 0; cursor: pointer; border: 1px dashed var(--secondary); font-size: 1rem; font-weight: 600; color: #ff758f; }
         .error-msg { color: #ff4d4d; font-weight: bold; margin-top: 10px; }
 
         #matrixCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; opacity: 0.3; }
@@ -82,10 +83,16 @@
         <!-- 0. صانع المفاجآت الذكي -->
         <div id="generatorCard" class="card">
             <h2>✨ صانع المفاجآت الذكي ✨</h2>
-            <p style="margin-bottom: 10px; font-size: 0.85rem;">اكتب بياناتك ورابط الصورة لإنشاء الرابط الخاص والباركود فوراً:</p>
+            <p style="margin-bottom: 10px; font-size: 0.85rem;">اختر صورتك من التليفون، واكتب رسالتك لإنشاء الرابط والباركود:</p>
             <input type="text" id="cfgPass" placeholder="كلمة السر الخاصة بها" value="123">
             <input type="text" id="cfgDate" placeholder="تاريخ ارتباطنا" value="10/10/2026">
-            <input type="text" id="cfgImgUrl" placeholder="حط رابط الصورة المباشر هنا (مثال من ImgBB)">
+            
+            <label class="file-label" for="cfgImageFile">
+                📁 اضغط هنا لاختيار الصورة من الاستوديو
+            </label>
+            <input type="file" id="cfgImageFile" accept="image/*" style="display:none;" onchange="handleImageSelect(this)">
+            <div id="imageStatus" style="color: #4cd137; font-weight: bold; margin-bottom: 10px; font-size: 0.9rem;">لم يتم اختيار صورة بعد</div>
+
             <textarea id="cfgMsg1" rows="2" placeholder="الرسالة الأولى">أنت أجمل صدفة منورتلي حياتي، وبحبك بكل تفاصيلك وبكل يوم بيعدي بينا ❤️</textarea>
             <textarea id="cfgMsg2" rows="3" placeholder="الرسالة الكبرى الأخيرة">سنين الحب الحلوة دي مش هتعدي يوم في عمري. ربنا يخليكي ليا وما يحرمنيش منك أبداً يا أحلى وأغلى حاجة في دنيتي كلها ❤️.</textarea>
 
@@ -183,6 +190,8 @@
             images: ["https://picsum.photos/300/400"]
         };
 
+        let storedImageBase64 = "";
+
         window.onload = function() {
             const hash = window.location.hash.substring(1);
             if (hash) {
@@ -196,20 +205,54 @@
             showOnly('generatorCard');
         };
 
-        function generateCustomLinkAndQR() {
-            let imgUrl = document.getElementById('cfgImgUrl').value.trim();
-            if(!imgUrl) imgUrl = "https://picsum.photos/300/400";
+        function handleImageSelect(input) {
+            const file = input.files[0];
+            if (!file) return;
 
+            document.getElementById('imageStatus').innerText = "جاري تحميل ومعالجة الصورة... ⏳";
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 400;
+
+                    if (width > height && width > maxDim) {
+                        height = Math.round((height * maxDim) / width);
+                        width = maxDim;
+                    } else if (height > maxDim) {
+                        width = Math.round((width * maxDim) / height);
+                        height = maxDim;
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    storedImageBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    document.getElementById('imageStatus').innerText = "تم اختيار وضغط الصورة بنجاح ✅";
+                };
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function generateCustomLinkAndQR() {
             packageData = {
                 pass: document.getElementById('cfgPass').value.trim() || "123",
                 date: document.getElementById('cfgDate').value.trim() || "10/10/2026",
                 msg1: document.getElementById('cfgMsg1').value.trim(),
                 msg2: document.getElementById('cfgMsg2').value.trim(),
-                images: [imgUrl]
+                images: storedImageBase64 ? [storedImageBase64] : ["https://picsum.photos/300/400"]
             };
 
             try {
-                const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(packageData))));
+                const jsonStr = JSON.stringify(packageData);
+                const encodedData = btoa(unescape(encodeURIComponent(jsonStr)));
                 const customURL = window.location.origin + window.location.pathname + '#' + encodedData;
                 
                 document.getElementById('siteUrlInput').value = customURL;
@@ -226,7 +269,7 @@
                     correctLevel: QRCode.CorrectLevel.L
                 });
             } catch(e) {
-                alert("حدث خطأ في التوليد.");
+                alert("حجم الصورة كبير جداً، يرجى اختيار صورة أصغر.");
             }
         }
 
@@ -344,25 +387,3 @@
             const showcase = document.getElementById('stackShowcase');
             showcase.innerHTML = "";
             let imgs = packageData.images && packageData.images.length > 0 ? packageData.images : ["https://picsum.photos/300/400"];
-
-            imgs.forEach((url) => {
-                let img = document.createElement('img');
-                img.src = url;
-                img.className = 'stack-img';
-                showcase.appendChild(img);
-            });
-
-            const stackImages = document.querySelectorAll('.stack-img');
-            let current = 0;
-            function showNextImage() {
-                if(current < stackImages.length) {
-                    stackImages[current].classList.add('active');
-                    current++;
-                    setTimeout(showNextImage, 2500);
-                }
-            }
-            showNextImage();
-        }
-    </script>
-</body>
-</html>
