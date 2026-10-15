@@ -40,4 +40,329 @@
         .btn:hover { transform: translateY(-3px) scale(1.03); }
 
         input, textarea {
-            width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid
+            width: 100%; padding: 12px; margin: 8px 0; border-radius: 12px; border: 1px solid rgba(255,255,255,0.3); background: rgba(0,0,0,0.5); color: white; font-size: 1rem; text-align: center;
+        }
+
+        .error-msg { color: #ff4d4d; font-weight: bold; margin-top: 10px; }
+
+        #matrixCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; opacity: 0.3; }
+        .cinematic-scene { position: relative; min-height: 320px; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2; }
+
+        .heart-grid {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 320px; margin: 10px auto; font-size: 0.85rem; font-weight: bold; color: #ff758f;
+            text-shadow: 0 0 10px rgba(255, 77, 109, 0.8); opacity: 0; transform: scale(0.5); transition: all 1.2s ease;
+        }
+        .heart-grid.show { opacity: 1; transform: scale(1); }
+
+        .hug-art-container { opacity: 0; transform: translateY(20px); transition: all 1.5s ease; margin-top: 15px; }
+        .hug-art-container.show { opacity: 1; transform: translateY(0); }
+
+        .forever-text { font-family: 'Great Vibes', cursive; font-size: 2.2rem; color: #ff758f; text-shadow: 0 0 12px rgba(255, 117, 143, 0.8); margin-bottom: 10px; direction: ltr; }
+        .hug-svg { width: 140px; height: 140px; fill: none; stroke: #ff4d6d; stroke-width: 2; stroke-linecap: round; filter: drop-shadow(0 0 8px rgba(255, 77, 109, 0.6)); }
+
+        .album-container { position: relative; width: 260px; height: 330px; margin: 15px auto; perspective: 1000px; }
+        .album-card { position: absolute; width: 100%; height: 100%; border-radius: 16px; overflow: hidden; border: 4px solid white; box-shadow: 0 10px 25px rgba(0,0,0,0.5); background: #000; cursor: pointer; }
+        .album-card img { width: 100%; height: 100%; object-fit: cover; }
+
+        .envelope { width: 160px; height: 110px; background: #ff758f; margin: 20px auto; position: relative; border-radius: 8px; cursor: pointer; box-shadow: 0 10px 20px rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; }
+        .envelope::before { content: ''; position: absolute; top: 0; border-left: 80px solid transparent; border-right: 80px solid transparent; border-top: 55px solid #ff4d6d; }
+        .envelope-heart { font-size: 2rem; color: white; z-index: 2; }
+
+        .stack-showcase { position: relative; width: 280px; height: 350px; margin: 15px auto; }
+        .stack-img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 20px; object-fit: cover; border: 5px solid white; box-shadow: 0 15px 30px rgba(0,0,0,0.6); opacity: 0; transform: scale(0.8) rotate(-5deg); transition: all 1s ease; }
+        .stack-img.active { opacity: 1; transform: scale(1) rotate(0deg); }
+    </style>
+</head>
+<body>
+
+    <audio id="bgMusic" loop></audio>
+
+    <div class="container">
+
+        <!-- 0. صانع المفاجآت الذكي -->
+        <div id="generatorCard" class="card">
+            <h2>✨ صانع المفاجآت الذكي ✨</h2>
+            <p style="margin-bottom: 10px; font-size: 0.85rem;">اكتب بياناتك ورابط الصورة لإنشاء الرابط الخاص والباركود فوراً:</p>
+            <input type="text" id="cfgPass" placeholder="كلمة السر الخاصة بها" value="123">
+            <input type="text" id="cfgDate" placeholder="تاريخ ارتباطنا" value="10/10/2026">
+            <input type="text" id="cfgImgUrl" placeholder="حط رابط الصورة المباشر هنا (مثال من ImgBB)">
+            <textarea id="cfgMsg1" rows="2" placeholder="الرسالة الأولى">أنت أجمل صدفة منورتلي حياتي، وبحبك بكل تفاصيلك وبكل يوم بيعدي بينا ❤️</textarea>
+            <textarea id="cfgMsg2" rows="3" placeholder="الرسالة الكبرى الأخيرة">سنين الحب الحلوة دي مش هتعدي يوم في عمري. ربنا يخليكي ليا وما يحرمنيش منك أبداً يا أحلى وأغلى حاجة في دنيتي كلها ❤️.</textarea>
+
+            <button class="btn" onclick="generateCustomLinkAndQR()">توليد الرابط والباركود الخاص 🚀</button>
+            
+            <div id="linkOutput" style="margin-top: 15px; display: none;">
+                <p style="color: #4cd137; font-weight: bold; margin-bottom: 5px;">تم توليد الرابط والباركود بنجاح! 🎉</p>
+                <input type="text" readonly id="siteUrlInput" onclick="this.select()">
+                <button class="btn" style="padding: 8px 18px; font-size: 0.9rem; margin-bottom: 15px;" onclick="copyCustomUrl()">نسخ الرابط الخاص 📋</button>
+                
+                <p style="font-size: 0.9rem; margin-bottom: 8px; color: var(--secondary);">الباركود الخاص بالمفاجأة (QR Code):</p>
+                <div id="qrcode" style="background: white; padding: 15px; display: inline-block; border-radius: 12px;"></div>
+            </div>
+        </div>
+
+        <!-- 1. شاشة الباسورد -->
+        <div id="stepPassword" class="card hidden">
+            <h2>🔒 كلمة السر يا حلوة</h2>
+            <p style="margin: 10px 0;">اكتبي الباسورد الخاص بينا علشان تفتحي المفاجأة:</p>
+            <div class="password-box">
+                <input type="password" id="passInput" placeholder="أدخلي كلمة السر...">
+                <button class="btn" onclick="checkPassword()">دخول ❤️</button>
+            </div>
+            <div id="errorArea" class="error-msg hidden">الباسورد غلط يا حبيبتي ركزي ❤️</div>
+        </div>
+
+        <!-- 2. المشهد السينمائي -->
+        <div id="stepCinematic" class="card hidden" style="position: relative; overflow: hidden;">
+            <canvas id="matrixCanvas"></canvas>
+            <div class="cinematic-scene">
+                <div id="heartShapeContainer" class="heart-grid">
+                    <div></div><div>I Love You</div><div>❤️</div><div>I Love You</div><div></div>
+                    <div>I Love You</div><div>I Love You</div><div>I Love You</div><div>I Love You</div><div>I Love You</div>
+                    <div>I Love You</div><div>I Love You</div><div>I Love You</div><div>I Love You</div><div>I Love You</div>
+                    <div></div><div>I Love You</div><div>Forever</div><div>I Love You</div><div></div>
+                    <div></div><div></div><div>I Love You</div><div></div><div></div>
+                </div>
+
+                <div id="hugContainer" class="hug-art-container">
+                    <div class="forever-text">I will love you forever</div>
+                    <svg class="hug-svg" viewBox="0 0 100 100">
+                        <path d="M 35 30 C 35 15, 50 15, 50 30 C 50 15, 65 15, 65 30 C 65 50, 50 65, 50 80 C 50 65, 35 50, 35 30 Z" fill="rgba(255, 77, 109, 0.2)" stroke="#ff4d6d" stroke-width="1.5"/>
+                        <path d="M 30 55 C 35 40, 45 45, 50 50 C 55 45, 65 40, 70 55 C 60 70, 50 75, 50 85 C 50 75, 40 70, 30 55 Z" fill="none" stroke="#ff758f" stroke-width="2"/>
+                    </svg>
+                </div>
+            </div>
+            <button id="btnAfterCinematic" class="btn hidden" onclick="goToStep('stepMsg1Container')">متابعة العرض ✨</button>
+        </div>
+
+        <!-- 3. الرسالة الأولى -->
+        <div id="stepMsg1Container" class="card hidden">
+            <div id="typingMsg1" style="font-size: 1.15rem; line-height: 1.8; min-height: 80px;"></div>
+            <button id="btnAfterMsg1" class="btn hidden" onclick="goToStep('stepAlbum')">اضغطي يا روحي علشان نكمل ❤️</button>
+        </div>
+
+        <!-- 4. الألبوم -->
+        <div id="stepAlbum" class="card hidden">
+            <h3 id="displayDate" style="color: var(--secondary); margin-bottom: 10px;"></h3>
+            <div class="album-container" id="albumContainer"></div>
+            <p style="font-size: 0.85rem; opacity: 0.8;">اضغطي على الصورة للتقليب 📖</p>
+            <button id="btnAfterAlbum" class="btn" onclick="goToStep('stepEnvelope')">اضغطي علشان نكمل يا قطتي 🐾</button>
+        </div>
+
+        <!-- 5. الظرف -->
+        <div id="stepEnvelope" class="card hidden">
+            <p style="line-height: 1.7; font-size: 1.05rem; margin-bottom: 15px;">
+                كتبتلك الرسالة دي وانا متأكد أن حبي ليك عمره ما هيقل وعاوزك تعرفي اني اي حاجه بعملها هتبقا علشانك و علشان بحبك يا قطتي ❤️
+            </p>
+            <div class="envelope" onclick="goToStep('stepMsg2Container')">
+                <div class="envelope-heart">✉️</div>
+            </div>
+            <button class="btn" onclick="goToStep('stepMsg2Container')">افتح 💌</button>
+        </div>
+
+        <!-- 6. الرسالة الأخيرة -->
+        <div id="stepMsg2Container" class="card hidden">
+            <div id="typingMsg2" style="font-size: 1.1rem; line-height: 1.9; min-height: 100px;"></div>
+            <button id="btnAfterMsg2" class="btn hidden" onclick="startFinalShowcase()">العرض الأخير يا روحي اضغطي 🎬</button>
+        </div>
+
+        <!-- 7. العرض الخِتامي -->
+        <div id="stepFinalShowcase" class="card hidden">
+            <h2>بحبك يا أحلى حاجة في حياتي ❤️</h2>
+            <div class="stack-showcase" id="stackShowcase"></div>
+        </div>
+
+    </div>
+
+    <script>
+        let packageData = {
+            pass: "123",
+            date: "10/10/2026",
+            msg1: "",
+            msg2: "",
+            images: ["https://picsum.photos/300/400"]
+        };
+
+        window.onload = function() {
+            const hash = window.location.hash.substring(1);
+            if (hash) {
+                try {
+                    const decoded = JSON.parse(decodeURIComponent(escape(atob(hash))));
+                    packageData = decoded;
+                    showOnly('stepPassword');
+                    return;
+                } catch(e) {}
+            }
+            showOnly('generatorCard');
+        };
+
+        function generateCustomLinkAndQR() {
+            let imgUrl = document.getElementById('cfgImgUrl').value.trim();
+            if(!imgUrl) imgUrl = "https://picsum.photos/300/400";
+
+            packageData = {
+                pass: document.getElementById('cfgPass').value.trim() || "123",
+                date: document.getElementById('cfgDate').value.trim() || "10/10/2026",
+                msg1: document.getElementById('cfgMsg1').value.trim(),
+                msg2: document.getElementById('cfgMsg2').value.trim(),
+                images: [imgUrl]
+            };
+
+            try {
+                const encodedData = btoa(unescape(encodeURIComponent(JSON.stringify(packageData))));
+                const customURL = window.location.origin + window.location.pathname + '#' + encodedData;
+                
+                document.getElementById('siteUrlInput').value = customURL;
+                document.getElementById('linkOutput').style.display = 'block';
+
+                const qrContainer = document.getElementById('qrcode');
+                qrContainer.innerHTML = "";
+                new QRCode(qrContainer, {
+                    text: customURL,
+                    width: 150,
+                    height: 150,
+                    colorDark: "#0f051d",
+                    colorLight: "#ffffff",
+                    correctLevel: QRCode.CorrectLevel.L
+                });
+            } catch(e) {
+                alert("حدث خطأ في التوليد.");
+            }
+        }
+
+        function copyCustomUrl() {
+            const copyText = document.getElementById("siteUrlInput");
+            copyText.select();
+            document.execCommand("copy");
+            alert("تم نسخ الرابط الخاص بالمفاجأة! ❤️");
+        }
+
+        function showOnly(id) {
+            document.querySelectorAll('.container .card').forEach(c => c.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function checkPassword() {
+            const val = document.getElementById('passInput').value;
+            if (val === packageData.pass) {
+                document.getElementById('errorArea').classList.add('hidden');
+                showOnly('stepCinematic');
+                startCinematicSequence();
+            } else {
+                document.getElementById('errorArea').classList.remove('hidden');
+            }
+        }
+
+        function startCinematicSequence() {
+            const canvas = document.getElementById('matrixCanvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.parentElement.offsetWidth;
+            canvas.height = canvas.parentElement.offsetHeight;
+
+            const chars = "01 I LOVE YOU ❤️ CODE LOVE 💖";
+            const fontSize = 14;
+            const columns = canvas.width / fontSize;
+            const drops = Array(Math.floor(columns)).fill(1);
+
+            let matrixInterval = setInterval(() => {
+                ctx.fillStyle = 'rgba(15, 5, 29, 0.1)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#00ff66';
+                ctx.font = fontSize + 'px monospace';
+
+                for (let i = 0; i < drops.length; i++) {
+                    let text = chars.charAt(Math.floor(Math.random() * chars.length));
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                    drops[i]++;
+                }
+            }, 50);
+
+            setTimeout(() => {
+                clearInterval(matrixInterval);
+                canvas.style.display = 'none';
+                document.getElementById('heartShapeContainer').classList.add('show');
+                setTimeout(() => {
+                    document.getElementById('hugContainer').classList.add('show');
+                    document.getElementById('btnAfterCinematic').classList.remove('hidden');
+                }, 1500);
+            }, 7000);
+        }
+
+        function goToStep(stepId) {
+            showOnly(stepId);
+            if (stepId === 'stepMsg1Container') {
+                typeEffect('typingMsg1', packageData.msg1, () => {
+                    document.getElementById('btnAfterMsg1').classList.remove('hidden');
+                });
+            } else if (stepId === 'stepAlbum') {
+                setupAlbum();
+            } else if (stepId === 'stepMsg2Container') {
+                typeEffect('typingMsg2', packageData.msg2, () => {
+                    document.getElementById('btnAfterMsg2').classList.remove('hidden');
+                });
+            }
+        }
+
+        function typeEffect(elementId, text, callback) {
+            const el = document.getElementById(elementId);
+            el.innerHTML = "";
+            let i = 0;
+            const timer = setInterval(() => {
+                if (i < text.length) {
+                    el.innerHTML += text.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(timer);
+                    if (callback) callback();
+                }
+            }, 50);
+        }
+
+        function setupAlbum() {
+            document.getElementById('displayDate').innerText = "تاريخ ارتباطنا: " + (packageData.date || "10/10/2026");
+            const container = document.getElementById('albumContainer');
+            container.innerHTML = "";
+            let imgs = packageData.images && packageData.images.length > 0 ? packageData.images : ["https://picsum.photos/300/400"];
+
+            imgs.forEach((url, idx) => {
+                let card = document.createElement('div');
+                card.className = 'album-card';
+                card.style.zIndex = imgs.length - idx;
+                card.innerHTML = `<img src="${url}">`;
+                card.onclick = function() {
+                    this.style.transform = 'translateX(-150%) rotate(-20deg)';
+                    this.style.opacity = '0';
+                    setTimeout(() => { container.appendChild(this); this.style.transform = ''; this.style.opacity = '1'; }, 600);
+                };
+                container.appendChild(card);
+            });
+        }
+
+        function startFinalShowcase() {
+            showOnly('stepFinalShowcase');
+            const showcase = document.getElementById('stackShowcase');
+            showcase.innerHTML = "";
+            let imgs = packageData.images && packageData.images.length > 0 ? packageData.images : ["https://picsum.photos/300/400"];
+
+            imgs.forEach((url) => {
+                let img = document.createElement('img');
+                img.src = url;
+                img.className = 'stack-img';
+                showcase.appendChild(img);
+            });
+
+            const stackImages = document.querySelectorAll('.stack-img');
+            let current = 0;
+            function showNextImage() {
+                if(current < stackImages.length) {
+                    stackImages[current].classList.add('active');
+                    current++;
+                    setTimeout(showNextImage, 2500);
+                }
+            }
+            showNextImage();
+        }
+    </script>
+</body>
+</html>
